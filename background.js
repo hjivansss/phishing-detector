@@ -4,7 +4,6 @@ async function checkBlacklist(url) {
     try {
         const response = await fetch("https://openphish.com/feed.txt");
         const text = await response.text();
-        console.log(text);
 
         return text.includes(url);
     } catch (error) {
@@ -26,6 +25,20 @@ function checkUrl(url) {
 
     return false;
 }
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "continueToSite") {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.tabs.update(tabs[0].id, { url: message.url });
+        });
+    }
+
+    if (message.action === "goBack") {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.tabs.remove(tabs[0].id);
+        });
+    }
+});
 
 chrome.webNavigation.onCompleted.addListener(async (details) => {
     if (details.frameId !== 0) return;
@@ -49,3 +62,5 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
 });
 
 console.log("Extension Running");
+
+console.log("Background service worker started");
