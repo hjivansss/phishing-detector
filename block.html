@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Security Warning</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="icon">⚠</div>
+
+            <h1>Suspicious Website Ahead</h1>
+
+            <p class="description">
+                The website you are trying to visit may be a
+                <b>phishing website</b>. Attackers might try to steal your
+                passwords, banking information, or personal data.
+            </p>
+
+            <div class="url-box">
+                <p>Suspicious URL</p>
+                <span id="site"></span>
+            </div>
+
+            <div class="buttons">
+                <button id="backBtn" class="safe">Go Back (Recommended)</button>
+
+                <button id="continue" class="danger">Continue Anyway</button>
+            </div>
+
+            <p class="footer">Protected by Phishing Detector</p>
+        </div>
+
+        <script src="block.js"></script>
+    </body>
+</html>
