@@ -1,0 +1,25 @@
+{
+    "manifest_version": 3,
+    "name": "Phishing Detector",
+    "version": "1.0",
+    "description": "Detect phishing websites using URL and blacklist API",
+
+    "permissions": ["tabs", "storage", "webNavigation"],
+
+    "host_permissions": ["<all_urls>"],
+
+    "background": {
+        "service_worker": "background.js"
+    },
+
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"]
+        }
+    ],
+
+    "action": {
+        "default_title": "Phishing Detector"
+    }
+}
