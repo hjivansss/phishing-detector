@@ -33,10 +33,10 @@ function loadWhitelist() {
             btn.className = "remove-btn";
 
             btn.innerHTML = `
-<svg viewBox="0 0 24 24" width="14" height="14">
-<line x1="5" y1="12" x2="19" y2="12"
+<svg viewBox="0 0 24 24">
+<line x1="4" y1="12" x2="20" y2="12"
 stroke="white"
-stroke-width="2"
+stroke-width="3"
 stroke-linecap="round"/>
 </svg>
 `;
