@@ -1,5 +1,9 @@
 console.log("Phishing detector background running");
 
+// Tabs allowed to bypass scan once
+const temporaryAllowTabs = new Set();
+
+// Tabs currently being scanned (prevents loop)
 const scanningTabs = new Set();
 
 function getDomain(url) {
@@ -18,11 +22,19 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
 
     if (!url.startsWith("http")) return;
 
+    // Ignore extension pages
     if (url.startsWith("chrome-extension://")) return;
 
+    // Ignore internal extension pages
     if (url.includes("loading.html") || url.includes("block.html")) return;
 
-    // Prevent loop if we already scanned this tab
+    // Continue Once bypass
+    if (temporaryAllowTabs.has(tabId)) {
+        temporaryAllowTabs.delete(tabId);
+        return;
+    }
+
+    // Prevent scanning loop
     if (scanningTabs.has(tabId)) {
         scanningTabs.delete(tabId);
         return;
@@ -33,6 +45,7 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     chrome.storage.local.get(["websiteToIgnore"], (data) => {
         const ignoreList = data.websiteToIgnore || [];
 
+        // Permanent whitelist
         if (ignoreList.includes(domain)) {
             return;
         }
@@ -48,18 +61,42 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     });
 });
 
+// Listen for actions from block.html
 chrome.runtime.onMessage.addListener((message, sender) => {
-    if (message.action === "continueToSite") {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.tabs.update(tabs[0].id, {
-                url: message.url,
+    const tabId = sender.tab?.id;
+
+    if (!tabId) return;
+
+    // Continue once
+    if (message.action === "continueOnce") {
+        temporaryAllowTabs.add(tabId);
+
+        chrome.tabs.update(tabId, {
+            url: message.url,
+        });
+    }
+
+    // Add to whitelist
+    if (message.action === "addWhitelist") {
+        const domain = getDomain(message.url);
+
+        chrome.storage.local.get(["websiteToIgnore"], (data) => {
+            let list = data.websiteToIgnore || [];
+
+            if (!list.includes(domain)) {
+                list.push(domain);
+            }
+
+            chrome.storage.local.set({ websiteToIgnore: list }, () => {
+                chrome.tabs.update(tabId, {
+                    url: message.url,
+                });
             });
         });
     }
 
+    // Go back
     if (message.action === "goBack") {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.tabs.remove(tabs[0].id);
-        });
+        chrome.tabs.remove(tabId);
     }
 });
