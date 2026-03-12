@@ -1,7 +1,7 @@
 const params = new URLSearchParams(window.location.search);
 const url = params.get("url");
 
-async function checkSite() {
+async function scan() {
     let suspicious = false;
 
     if (url.includes("@") || url.length > 75) {
@@ -15,22 +15,18 @@ async function checkSite() {
         if (text.includes(url)) {
             suspicious = true;
         }
-    } catch (err) {
-        console.log("API error", err);
+    } catch (e) {
+        console.log(e);
     }
 
     if (suspicious) {
-        chrome.tabs.update({
-            url:
-                chrome.runtime.getURL("block.html") +
-                "?url=" +
-                encodeURIComponent(url),
-        });
+        window.location.href =
+            chrome.runtime.getURL("block.html") +
+            "?url=" +
+            encodeURIComponent(url);
     } else {
-        chrome.tabs.update({
-            url: url,
-        });
+        window.location.href = url;
     }
 }
 
-checkSite();
+scan();

@@ -3,11 +3,22 @@ const url = params.get("url");
 
 document.getElementById("site").textContent = url;
 
-// Continue anyway
-document.getElementById("continue").addEventListener("click", () => {
-    chrome.runtime.sendMessage({
-        action: "continueToSite",
-        url: url,
+document.getElementById("continue").addEventListener("click", async () => {
+    const domain = new URL(url).hostname;
+
+    chrome.storage.local.get(["websiteToIgnore"], (data) => {
+        let list = data.websiteToIgnore || [];
+
+        if (!list.includes(domain)) {
+            list.push(domain);
+        }
+
+        chrome.storage.local.set({ websiteToIgnore: list }, () => {
+            chrome.runtime.sendMessage({
+                action: "continueToSite",
+                url: url,
+            });
+        });
     });
 });
 
