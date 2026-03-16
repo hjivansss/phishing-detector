@@ -1,3 +1,5 @@
+import { runRuleEngine } from "../layers/layer1_rules/ruleEngine.js";  
+
 console.log("Phishing detector background running");
 
 // Tabs allowed to bypass scan once
@@ -6,6 +8,7 @@ const temporaryAllowTabs = new Set();
 // Tabs currently being scanned (prevents loop)
 const scanningTabs = new Set();
 
+//extraction of domain from webpage
 function getDomain(url) {
     try {
         return new URL(url).hostname;
@@ -14,8 +17,8 @@ function getDomain(url) {
     }
 }
 
-chrome.webNavigation.onBeforeNavigate.addListener((details) => {
-    if (details.frameId !== 0) return;
+chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+    if (details.frameId !== 0) return; //only scans the main page . (main page has 0 frameId)
 
     const tabId = details.tabId;
     const url = details.url;
@@ -25,10 +28,11 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     // Ignore extension pages
     if (url.startsWith("chrome-extension://")) return;
 
-    // Ignore internal extension pages
-    if (url.includes("loading.html") || url.includes("block.html")) return;
+    // Ignore internal extension page
+    // If we don't ignore these, it will scan its own pages and cause infinite loops.
+    if (url.includes("loading.html") || url.includes("block.html")) return; 
 
-    // Continue Once bypass
+    // Continue Once bypass(used by "Continue Anyway" button)
     if (temporaryAllowTabs.has(tabId)) {
         temporaryAllowTabs.delete(tabId);
         return;
@@ -41,25 +45,41 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     }
 
     const domain = getDomain(url);
+    if (!domain) return;
 
-    chrome.storage.local.get(["websiteToIgnore"], (data) => {
-        const ignoreList = data.websiteToIgnore || [];
+    
+    /******* LAYER_1 ******/
+    const result = await runRuleEngine(url, domain);
+    console.log("Layer 1 result:", result.status , url);
 
-        // Permanent whitelist
-        if (ignoreList.includes(domain)) {
-            return;
-        }
+    /* SAFE → allow navigation */
+    if (result.status === "safe") {
+        return;
+    }
 
-        scanningTabs.add(tabId);
+    /* PHISHING → block immediately */
+    if (result.status === "phishing") {
 
         chrome.tabs.update(tabId, {
             url:
-                chrome.runtime.getURL("loading.html") +
+                chrome.runtime.getURL("ui/block.html") +
                 "?url=" +
                 encodeURIComponent(url),
         });
-    });
+
+        return;
+    }
+
+    /* SUSPICIOUS → allow for now (Layer 2 not implemented yet) */
+    if (result.status === "suspicious") {
+
+        console.log("Suspicious site detected but Layer 2 not implemented yet.");
+
+        return;
+    }
 });
+
+
 
 // Listen for actions from block.html
 chrome.runtime.onMessage.addListener((message, sender) => {
