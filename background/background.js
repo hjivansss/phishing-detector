@@ -1,3 +1,5 @@
+import { runRuleEngine } from "../layers/layer_1/ruleEngine.js";  
+
 console.log("Phishing detector background running");
 
 // Tabs allowed to bypass scan once
@@ -6,6 +8,7 @@ const temporaryAllowTabs = new Set();
 // Tabs currently being scanned (prevents loop)
 const scanningTabs = new Set();
 
+//extraction of domain from webpage
 function getDomain(url) {
     try {
         return new URL(url).hostname;
@@ -14,8 +17,8 @@ function getDomain(url) {
     }
 }
 
-chrome.webNavigation.onBeforeNavigate.addListener((details) => {
-    if (details.frameId !== 0) return;
+chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+    if (details.frameId !== 0) return; //only scans the main page . (main page has 0 frameId)
 
     const tabId = details.tabId;
     const url = details.url;
@@ -25,10 +28,11 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     // Ignore extension pages
     if (url.startsWith("chrome-extension://")) return;
 
-    // Ignore internal extension pages
-    if (url.includes("loading.html") || url.includes("block.html")) return;
+    // Ignore internal extension page
+    // If we don't ignore these, it will scan its own pages and cause infinite loops..
+    if (url.includes("loading.html") || url.includes("block.html")) return; 
 
-    // Continue Once bypass
+    // Continue Once bypass(used by "Continue Anyway" button)
     if (temporaryAllowTabs.has(tabId)) {
         temporaryAllowTabs.delete(tabId);
         return;
@@ -41,31 +45,56 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     }
 
     const domain = getDomain(url);
+    if (!domain) return;
 
-    chrome.storage.local.get(["websiteToIgnore"], (data) => {
-        const ignoreList = data.websiteToIgnore || [];
+    
+     //  redirect to loading page
+    scanningTabs.add(tabId);
 
-        // Permanent whitelist
-        if (ignoreList.includes(domain)) {
-            return;
-        }
-
-        scanningTabs.add(tabId);
-
-        chrome.tabs.update(tabId, {
-            url:
-                chrome.runtime.getURL("loading.html") +
-                "?url=" +
-                encodeURIComponent(url),
-        });
+    chrome.tabs.update(tabId, {
+        url:
+            chrome.runtime.getURL("ui/loading.html") +
+            "?url=" +
+            encodeURIComponent(url),
     });
 });
 
-// Listen for actions from block.html
-chrome.runtime.onMessage.addListener((message, sender) => {
-    const tabId = sender.tab?.id;
 
+chrome.runtime.onMessage.addListener((message, sender) => {
+
+    const tabId = sender.tab?.id;
     if (!tabId) return;
+
+    // SCAN FLOW
+    if (message.action === "scanNow") {
+
+        const url = message.url;
+        const domain = getDomain(url);
+        if (!domain) return;
+
+        runRuleEngine(url, domain).then(result => {
+
+            if (result.status === "phishing" || result.status === "suspicious") {
+
+                chrome.tabs.update(tabId, {
+                    url:
+                        chrome.runtime.getURL("ui/block.html") +
+                        "?url=" +
+                        encodeURIComponent(url),
+                });
+
+            } else {
+
+                chrome.tabs.update(tabId, {
+                    url: url,
+                });
+
+            }
+
+        });
+
+        return;
+    }
 
     // Continue once
     if (message.action === "continueOnce") {
@@ -76,7 +105,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
         });
     }
 
-    // Add to whitelist
+    //  Add to whitelist
     if (message.action === "addWhitelist") {
         const domain = getDomain(message.url);
 
@@ -95,8 +124,9 @@ chrome.runtime.onMessage.addListener((message, sender) => {
         });
     }
 
-    // Go back
+    //  Go back
     if (message.action === "goBack") {
         chrome.tabs.remove(tabId);
     }
+
 });
